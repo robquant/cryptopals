@@ -29,11 +29,11 @@ func oracle(prefix []byte) []byte {
 }
 
 func crackLastLetterInBlock(prefix, target []byte, blockSize int) byte {
-	plaintext := make([]byte, blockSize)
-	copy(plaintext, prefix)
+	attackerString := make([]byte, blockSize)
+	copy(attackerString, prefix)
 	for b := 0; b <= 255; b++ {
-		plaintext[blockSize-1] = byte(b)
-		enrypted := oracle(plaintext)
+		attackerString[blockSize-1] = byte(b)
+		enrypted := oracle(attackerString)
 		if bytes.Compare(enrypted[:blockSize], target) == 0 {
 			return byte(b)
 		}
