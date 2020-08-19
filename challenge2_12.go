@@ -21,6 +21,8 @@ func init() {
 	rand.Read(key)
 }
 
+// Create a combined string of our chosen prefix and the
+// unknown plaintext. Enrypt with AES in ECB mode.
 func oracle(prefix []byte) []byte {
 	combined := make([]byte, 0)
 	combined = append(combined, prefix...)
@@ -28,9 +30,13 @@ func oracle(prefix []byte) []byte {
 	return tools.EncryptAesECB(combined, key)
 }
 
+//
 func crackLastLetterInBlock(prefix, target []byte, blockSize int) byte {
 	attackerString := make([]byte, blockSize)
 	copy(attackerString, prefix)
+	// We know that target == oracle(prefix + unknown letter)
+	// We call oracle with all possible letters in the last position and compare
+	// to the target block. If they are identical we found the letter.
 	for b := 0; b <= 255; b++ {
 		attackerString[blockSize-1] = byte(b)
 		enrypted := oracle(attackerString)
@@ -48,6 +54,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Figure out the block size of the encryption algorithm
+	// by feeding it 2 blocksize blocks of repeated "A"'s and look for
+	// repetitions in the encrypted output
 	var blockSize int
 	for bs := 1; bs <= 33; bs++ {
 		prefix := bytes.Repeat([]byte{65}, 2*bs)
@@ -60,11 +69,18 @@ func main() {
 	fmt.Printf("Blocksize is %d\n", blockSize)
 	decoded := bytes.Repeat([]byte{65}, blockSize)
 	for i := 0; i < len(plaintext); i++ {
-		blockIndex := i / blockSize
-		prefixLength := blockSize - (i % blockSize) - 1
+		blockIndex := i / blockSize // block of plaintext we are cracking
+		// We alway make sure the next letter the decode is last in a block
+		// and we hae decoded all the letters before this one
+		// E.g. to decode the first plaintext letters we prefix with
+		// blocksize - 1 "A"s
+		prefixLength := blockSize - (i % blockSize) - 1 //
 		prefix := bytes.Repeat([]byte{65}, prefixLength)
 		encrypted := oracle(prefix)
+		// Cut out the block were the letter we are trying to crack is last in the block
 		targetBlock := encrypted[blockIndex*blockSize : (blockIndex+1)*blockSize]
+		// decoded[len(decoded)-blockSize+1:] are the letters before the target letter that
+		// we have already decoded (or chosen)
 		b := crackLastLetterInBlock(decoded[len(decoded)-blockSize+1:], targetBlock, blockSize)
 		decoded = append(decoded, b)
 	}
