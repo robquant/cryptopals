@@ -1,5 +1,9 @@
 package tools
 
+import "errors"
+
+var ErrPaddingInvalid = errors.New("Pkcs7Padding not valid")
+
 func Pkcs7Pad(in []byte, bs int) []byte {
 	padBytes := bs - len(in)%bs
 	out := make([]byte, len(in)+padBytes)
@@ -8,4 +12,14 @@ func Pkcs7Pad(in []byte, bs int) []byte {
 		out[len(in)+i] = byte(padBytes)
 	}
 	return out
+}
+
+func Pkcs7Validate(in []byte) error {
+	padBytes := in[len(in)-1]
+	for _, b := range in[len(in)-int(padBytes):] {
+		if b != padBytes {
+			return ErrPaddingInvalid
+		}
+	}
+	return nil
 }
