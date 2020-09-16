@@ -16,6 +16,9 @@ func Pkcs7Pad(in []byte, bs int) []byte {
 
 func Pkcs7Validate(in []byte) error {
 	padBytes := in[len(in)-1]
+	if int(padBytes) > len(in) {
+		return ErrPaddingInvalid
+	}
 	for _, b := range in[len(in)-int(padBytes):] {
 		if b != padBytes {
 			return ErrPaddingInvalid

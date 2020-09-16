@@ -21,5 +21,6 @@ func main() {
 	input := strings.Replace(string(inputBytes), "\n", "", 0)
 	ciphertext, _ := base64.StdEncoding.DecodeString(input)
 
-	fmt.Println(string(tools.DecryptAesCBC(ciphertext, key, iv)))
+	decrypted, err := tools.DecryptAesCBC(ciphertext, key, iv)
+	fmt.Println(string(decrypted))
 }

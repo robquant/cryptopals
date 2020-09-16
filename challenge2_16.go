@@ -41,21 +41,45 @@ func first(in string) []byte {
 
 func second(ciphertext []byte) bool {
 	// decrypt the string and look for the characters ";admin=true;"
-	decrypted := string(tools.DecryptAesCBC(ciphertext, key, iv))
+	decryptedBytes, _ := tools.DecryptAesCBC(ciphertext, key, iv)
+	decrypted := string(decryptedBytes)
 	// return true or false based on whether the string exists.
 	return strings.Contains(decrypted, ";admin=true;")
 }
 
+func findFirstChangedBlock(cipher1, cipher2 []byte) int {
+	for i := 0; (i+1)*bs < len(cipher1); i++ {
+		dist := tools.HammingDistance(cipher1[i*bs:(i+1)*bs], cipher2[i*bs:(i+1)*bs])
+		if dist > 0 {
+			return i
+		}
+	}
+	return -1
+}
+
 func main() {
 	ciphertext := first(strings.Repeat("A", 17))
+	ciphertextFirstChanged := first("B" + strings.Repeat("A", 17))
+	firstChangedBlock := findFirstChangedBlock(ciphertext, ciphertextFirstChanged)
 	var ciphertextFlipped []byte
-	for pos := 0; pos < 17; pos++ {
+	var shift int
+	for pos := 1; pos < 17; pos++ {
 		ciphertextFlipped = first(strings.Repeat("A", pos) + "B" + strings.Repeat("A", 17-pos))
-		// Magic with the ciphertext
-		for i := 0; (i+1)*bs < len(ciphertext); i++ {
-			dist := tools.HammingDistance(ciphertext[i*bs:(i+1)*bs], ciphertextFlipped[i*bs:(i+1)*bs])
-			fmt.Printf("Shift: %d, Block: %d, Dist: %d\n", pos, i, dist)
+		if findFirstChangedBlock(ciphertext, ciphertextFlipped) > firstChangedBlock {
+			shift = pos
+			break
 		}
-		fmt.Println()
 	}
+	padding := shift % bs
+	// Offset of the first full block we have under control
+	offset := bs*firstChangedBlock + padding
+	injected := "_admin_true_"
+	// Make sure our injected text starts at a block boundary
+	ciphertext = first(strings.Repeat("A", 16+padding) + injected)
+	target := []byte(";admin=true;")
+	change, _ := tools.Xor(target, []byte(injected))
+	for i := 0; i < len(change); i++ {
+		ciphertext[offset+i] ^= change[i]
+	}
+	fmt.Println(second(ciphertext))
 }

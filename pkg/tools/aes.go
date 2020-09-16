@@ -64,7 +64,7 @@ func EncryptAesCBC(plaintext, key, iv []byte) []byte {
 	return ciphertext
 }
 
-func DecryptAesCBC(ciphertext, key, iv []byte) []byte {
+func DecryptAesCBC(ciphertext, key, iv []byte) ([]byte, error) {
 	cipher, err := aes.NewCipher(key)
 	if err != nil {
 		log.Fatal(err)
@@ -84,7 +84,12 @@ func DecryptAesCBC(ciphertext, key, iv []byte) []byte {
 		plaintext = append(plaintext, decryptedBlock...)
 		ciphertext = ciphertext[bs:]
 	}
+
+	err = Pkcs7Validate(plaintext)
+	if err != nil {
+		return nil, err
+	}
 	padding := int(plaintext[len(plaintext)-1])
 
-	return plaintext[:len(plaintext)-padding]
+	return plaintext[:len(plaintext)-padding], nil
 }
