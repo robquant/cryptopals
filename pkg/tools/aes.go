@@ -73,8 +73,7 @@ func DecryptAesCBC(ciphertext, key, iv []byte) ([]byte, error) {
 	if len(ciphertext)%bs != 0 {
 		panic("Need a multiple of the blocksize")
 	}
-	previousBlock := make([]byte, bs)
-	copy(previousBlock, iv)
+	previousBlock := append([]byte{}, iv...)
 	plaintext := make([]byte, 0)
 	decryptedBlock := make([]byte, bs)
 	for len(ciphertext) > 0 {

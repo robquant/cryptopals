@@ -9,9 +9,9 @@ import (
 	"github.com/robquant/cryptopals/pkg/tools"
 )
 
-var key, iv []byte
+var KEY, IV []byte
 
-const bs = 16
+const BS = 16
 
 var inputStrings = []string{
 	"MDAwMDAwTm93IHRoYXQgdGhlIHBhcnR5IGlzIGp1bXBpbmc=",
@@ -28,10 +28,10 @@ var inputStrings = []string{
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
-	key = make([]byte, 16)
-	rand.Read(key)
-	iv = make([]byte, 16)
-	rand.Read(iv)
+	KEY = make([]byte, BS)
+	rand.Read(KEY)
+	IV = make([]byte, BS)
+	rand.Read(IV)
 }
 
 func first(in string) []byte {
@@ -44,13 +44,13 @@ func first(in string) []byte {
 	// CBC-encrypt it under that key
 	// return the ciphertext and IV.
 
-	return tools.EncryptAesCBC([]byte(in), key, iv)
+	return tools.EncryptAesCBC([]byte(in), KEY, IV)
 }
 
-func second(civ, ciphertext []byte) bool {
+func second(iv, ciphertext []byte) bool {
 
 	// decrypt the ciphertext produced by the first function
-	_, err := tools.DecryptAesCBC(ciphertext, key, civ)
+	_, err := tools.DecryptAesCBC(ciphertext, KEY, iv)
 	// check its padding
 	if err != nil {
 		return false
@@ -59,44 +59,41 @@ func second(civ, ciphertext []byte) bool {
 	return true
 }
 
-func findPadding(ciphertext []byte) int {
-	startIndex := len(ciphertext) - bs
+// func findPadding(iv, block []byte) int {
+// 	startIndex := len(ciphertext) - BS
 
-	clone := make([]byte, len(ciphertext))
-	copy(clone, ciphertext)
+// 	clone := make([]byte, len(ciphertext))
+// 	copy(clone, ciphertext)
 
-	for i := range clone[startIndex:] {
-		clone[i+startIndex-bs] = 255
-		if second(clone) == false {
-			return len(ciphertext) - (i + startIndex)
-		}
-	}
+// 	for i := range clone[startIndex:] {
+// 		clone[i+startIndex-BS] = 255
+// 		if second(clone) == false {
+// 			return len(ciphertext) - (i + startIndex)
+// 		}
+// 	}
+// 	return -1
+// }
 
-	return -1
-}
 func findLastByte(prevBlock, targetBlock []byte) (byte, error) {
 
-	c_prevBlock := append([]byte{}, prevBlock...)
-	c_prevBlock[14] = 0x34
+	copyPrevBlock := append([]byte{}, prevBlock...)
 	for c := 0; c < 256; c++ {
-		c_prevBlock[len(c_prevBlock)-1] = byte(c)
-		fmt.Println(second(c_prevBlock, targetBlock), c)
-		if second(c_prevBlock, targetBlock) {
-			fmt.Println(findPadding(c_prevBlock, targetBlock))
+		copyPrevBlock[len(copyPrevBlock)-1] = byte(c)
+		if second(copyPrevBlock, targetBlock) {
+			// fmt.Println(findPadding(copyPrevBlock, targetBlock))
 			return 0x01 ^ byte(c) ^ prevBlock[len(prevBlock)-1], nil
 		}
 	}
 
-	return 0, errors.New("Erro")
+	return 0, errors.New("Error")
 }
 
 func main() {
-	s := inputStrings[0]
+	s := inputStrings[rand.Intn(len(inputStrings))]
 	fmt.Println("original", s)
 	encrypted := first(s)
-	civ := append([]byte{}, iv...)
-	b, _ := findLastByte(civ, encrypted[0:bs])
-	fmt.Println(b)
+	b, _ := findLastByte(IV, encrypted[0:BS])
+	fmt.Printf("Should be: %s, got %s\n", s[BS-1:BS], string([]byte{b}))
 	// fmt.Println(second(iv, encrypted))
 
 	// ciphertext[15] ^ decrypted[31] = something
