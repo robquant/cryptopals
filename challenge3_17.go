@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -46,10 +47,10 @@ func first(in string) []byte {
 	return tools.EncryptAesCBC([]byte(in), key, iv)
 }
 
-func second(ciphertext []byte) bool {
+func second(civ, ciphertext []byte) bool {
 
 	// decrypt the ciphertext produced by the first function
-	_, err := tools.DecryptAesCBC(ciphertext, key, iv)
+	_, err := tools.DecryptAesCBC(ciphertext, key, civ)
 	// check its padding
 	if err != nil {
 		return false
@@ -58,10 +59,45 @@ func second(ciphertext []byte) bool {
 	return true
 }
 
+func findPadding(ciphertext []byte) int {
+	startIndex := len(ciphertext) - bs
+
+	clone := make([]byte, len(ciphertext))
+	copy(clone, ciphertext)
+
+	for i := range clone[startIndex:] {
+		clone[i+startIndex-bs] = 255
+		if second(clone) == false {
+			return len(ciphertext) - (i + startIndex)
+		}
+	}
+
+	return -1
+}
+func findLastByte(prevBlock, targetBlock []byte) (byte, error) {
+
+	c_prevBlock := append([]byte{}, prevBlock...)
+	c_prevBlock[14] = 0x34
+	for c := 0; c < 256; c++ {
+		c_prevBlock[len(c_prevBlock)-1] = byte(c)
+		fmt.Println(second(c_prevBlock, targetBlock), c)
+		if second(c_prevBlock, targetBlock) {
+			fmt.Println(findPadding(c_prevBlock, targetBlock))
+			return 0x01 ^ byte(c) ^ prevBlock[len(prevBlock)-1], nil
+		}
+	}
+
+	return 0, errors.New("Erro")
+}
+
 func main() {
-	s := inputStrings[rand.Int31n(int32(len(inputStrings)))]
+	s := inputStrings[0]
+	fmt.Println("original", s)
 	encrypted := first(s)
-	fmt.Println(second(encrypted))
+	civ := append([]byte{}, iv...)
+	b, _ := findLastByte(civ, encrypted[0:bs])
+	fmt.Println(b)
+	// fmt.Println(second(iv, encrypted))
 
 	// ciphertext[15] ^ decrypted[31] = something
 	// our_byte ^decrypted[31] = 0x01 (padding valid)
