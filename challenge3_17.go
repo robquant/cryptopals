@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"time"
@@ -9,7 +9,7 @@ import (
 	"github.com/robquant/cryptopals/pkg/tools"
 )
 
-var KEY, IV []byte
+var KEY []byte
 
 const BS = 16
 
@@ -30,11 +30,10 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 	KEY = make([]byte, BS)
 	rand.Read(KEY)
-	IV = make([]byte, BS)
-	rand.Read(IV)
+
 }
 
-func first(in string) []byte {
+func first(in string) ([]byte, []byte) {
 	// select at random one of the following 10 strings
 
 	// generate a random AES key (which it should save for all future encryptions)
@@ -43,8 +42,9 @@ func first(in string) []byte {
 
 	// CBC-encrypt it under that key
 	// return the ciphertext and IV.
-
-	return tools.EncryptAesCBC([]byte(in), KEY, IV)
+	var iv []byte = make([]byte, BS)
+	rand.Read(iv)
+	return iv, tools.EncryptAesCBC([]byte(in), KEY, iv)
 }
 
 func second(iv, ciphertext []byte) bool {
@@ -59,50 +59,77 @@ func second(iv, ciphertext []byte) bool {
 	return true
 }
 
-// func findPadding(iv, block []byte) int {
-// 	startIndex := len(ciphertext) - BS
+func findPadding(iv, block []byte) byte {
+	cloneBlock := append([]byte{}, block...)
+	cloneIv := append([]byte{}, iv...)
 
-// 	clone := make([]byte, len(ciphertext))
-// 	copy(clone, ciphertext)
-
-// 	for i := range clone[startIndex:] {
-// 		clone[i+startIndex-BS] = 255
-// 		if second(clone) == false {
-// 			return len(ciphertext) - (i + startIndex)
-// 		}
-// 	}
-// 	return -1
-// }
-
-func findLastByte(prevBlock, targetBlock []byte) (byte, error) {
-
-	copyPrevBlock := append([]byte{}, prevBlock...)
-	for c := 0; c < 256; c++ {
-		copyPrevBlock[len(copyPrevBlock)-1] = byte(c)
-		if second(copyPrevBlock, targetBlock) {
-			// fmt.Println(findPadding(copyPrevBlock, targetBlock))
-			return 0x01 ^ byte(c) ^ prevBlock[len(prevBlock)-1], nil
-		}
+	if second(cloneIv, cloneBlock) == false {
+		return 0
 	}
 
-	return 0, errors.New("Error")
+	for i := 0; i < BS; i++ {
+		cloneIv[i] ^= 255
+		if second(cloneIv, cloneBlock) == false {
+			return byte(BS - i)
+		}
+	}
+	panic("Err")
+	return 0xFF
+}
+
+func forcePlaintextByte(prevBlock, plaintext []byte, first int, plainByte byte) {
+	for i := first; i < BS; i++ {
+		prevBlock[i] = prevBlock[i] ^ plaintext[i] ^ plainByte
+	}
+}
+
+func findByte(prevBlock, targetBlock, plaintext []byte, pos int) {
+
+	copyPrevBlock := append([]byte{}, prevBlock...)
+	var padding byte
+	if pos < BS-1 {
+		padding = byte(BS - pos)
+		forcePlaintextByte(copyPrevBlock, plaintext, pos+1, padding)
+	}
+	for c := 0; c <= 255; c++ {
+		copyPrevBlock[pos] = byte(c)
+		if second(copyPrevBlock, targetBlock) {
+			if pos == BS-1 {
+				padding = findPadding(copyPrevBlock, targetBlock)
+			}
+			plaintext[pos] = padding ^ byte(c) ^ prevBlock[pos]
+		}
+	}
+}
+
+func decryptSingleBlock(prevBlock, targetBlock []byte) []byte {
+	plaintext := make([]byte, BS)
+	for i := BS - 1; i >= 0; i-- {
+		findByte(prevBlock, targetBlock, plaintext, i)
+	}
+	return plaintext
+}
+
+func oracleDecrypt(iv, encrypted []byte) []byte {
+	result := decryptSingleBlock(iv, encrypted[0:BS])
+	for block := 1; block < len(encrypted)/BS; block++ {
+		prevBlock := encrypted[BS*(block-1) : BS*block]
+		targetBlock := encrypted[BS*block : BS*(block+1)]
+		result = append(result, decryptSingleBlock(prevBlock, targetBlock)...)
+	}
+	return result
 }
 
 func main() {
 	s := inputStrings[rand.Intn(len(inputStrings))]
-	fmt.Println("original", s)
-	encrypted := first(s)
-	b, _ := findLastByte(IV, encrypted[0:BS])
-	fmt.Printf("Should be: %s, got %s\n", s[BS-1:BS], string([]byte{b}))
-	// fmt.Println(second(iv, encrypted))
-
-	// ciphertext[15] ^ decrypted[31] = something
-	// our_byte ^decrypted[31] = 0x01 (padding valid)
-
-	// decrypted[31] = 0x01 ^ our_byte
-	// something (=plaintext[31]) = decrypted[31] ^ ciphertext[15]
-
-	// ciphertext[15] so that 0x02
-	// 0x02 ^
-	// play with ciphertext[14]
+	original, _ := base64.StdEncoding.DecodeString(s)
+	fmt.Println("Original: ", string(original))
+	iv, encrypted := first(string(original))
+	plaintext := oracleDecrypt(iv, encrypted)
+	if tools.Pkcs7Validate(plaintext) != nil {
+		panic("Invalid padding")
+	}
+	padding := int(plaintext[len(plaintext)-1])
+	plaintext = plaintext[:len(plaintext)-padding]
+	fmt.Println("Attacked: ", string(plaintext))
 }
