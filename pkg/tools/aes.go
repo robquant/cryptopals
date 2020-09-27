@@ -132,6 +132,10 @@ func (ks *AesCtrKeyStream) NextByte() byte {
 	return b
 }
 
+func (ks *AesCtrKeyStream) Reset() {
+	ks.byteCounter = 0
+}
+
 func EncryptAesCtr(plaintext, key []byte, nonce uint64) []byte {
 	ks := NewAesCtrKeyStream(key, nonce)
 	return ctrStream(plaintext, ks)

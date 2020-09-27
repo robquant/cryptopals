@@ -15,5 +15,5 @@ func main() {
 	key := []byte("YELLOW SUBMARINE")
 	nonce := uint64(0)
 	ciphertext, _ := base64.StdEncoding.DecodeString(ciphertextBase64)
-	fmt.Println(string(tools.EncryptAesCtr(ciphertext, key, nonce)))
+	fmt.Println(string(tools.DecryptAesCtr(ciphertext, key, nonce)))
 }
